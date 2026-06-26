@@ -617,7 +617,7 @@ pub struct ChatCompletionRequest {
 
     #[builder(setter(custom), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    tools: Option<Vec<crate::types::Tool>>,
+    tools: Option<Vec<crate::types::ToolDefinition>>,
 
     #[builder(setter(strip_option), default)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -636,7 +636,7 @@ impl ChatCompletionRequestBuilder {
     strip_option_map_setter!(image_config, String, Value);
     strip_option_vec_setter!(plugins, Plugin);
     strip_option_vec_setter!(modalities, Modality);
-    strip_option_vec_setter!(tools, crate::types::Tool);
+    strip_option_vec_setter!(tools, crate::types::ToolDefinition);
 
     /// Enable reasoning with default settings (medium effort)
     pub fn enable_reasoning(&mut self) -> &mut Self {
@@ -667,7 +667,11 @@ impl ChatCompletionRequestBuilder {
     }
 
     /// Add a single tool to the request
-    pub fn tool(&mut self, tool: crate::types::Tool) -> &mut Self {
+    pub fn tool<T>(&mut self, tool: T) -> &mut Self
+    where
+        T: Into<crate::types::ToolDefinition>,
+    {
+        let tool = tool.into();
         if let Some(Some(ref mut existing_tools)) = self.tools {
             existing_tools.push(tool);
         } else {
@@ -829,7 +833,7 @@ impl ChatCompletionRequest {
     }
 
     /// Get the tools defined in this request
-    pub fn tools(&self) -> Option<&[crate::types::Tool]> {
+    pub fn tools(&self) -> Option<&[crate::types::ToolDefinition]> {
         self.tools.as_deref()
     }
 

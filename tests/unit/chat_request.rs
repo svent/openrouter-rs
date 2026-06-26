@@ -3,7 +3,7 @@ use openrouter_rs::{
         CacheControl, CacheControlType, ChatCompletionRequest, ContentPart, DebugOptions, Message,
         Modality, Plugin, StopSequence, StreamOptions, TraceOptions,
     },
-    types::{Effort, Role},
+    types::{Effort, Role, ServerTool, Tool},
 };
 use serde_json::json;
 
@@ -248,4 +248,85 @@ fn test_chat_request_plugins_and_stream_options_serialize() {
     assert_eq!(json["plugins"][0]["search_prompt"], "latest rust release");
     assert_eq!(json["stream_options"]["include_usage"], true);
     assert_eq!(json["debug"]["echo_upstream_body"], true);
+}
+
+#[test]
+fn test_chat_request_accepts_web_search_server_tool() {
+    let request = ChatCompletionRequest::builder()
+        .model("openai/gpt-5")
+        .messages(vec![Message::new(
+            Role::User,
+            "What changed in Rust this week?",
+        )])
+        .tool(ServerTool::openrouter_web_search().option("max_total_results", 10))
+        .build()
+        .expect("request should build");
+
+    let json = serde_json::to_value(&request).expect("request should serialize");
+
+    assert_eq!(json["tools"][0]["type"], "openrouter:web_search");
+    assert_eq!(json["tools"][0]["parameters"]["max_total_results"], 10);
+
+    let tools = request.tools().expect("tools should be present");
+    assert_eq!(tools.len(), 1);
+    assert_eq!(
+        tools[0]
+            .as_server()
+            .expect("tool should be a server tool")
+            .tool_type,
+        "openrouter:web_search"
+    );
+}
+
+#[test]
+fn test_chat_request_accepts_mixed_function_and_server_tools() {
+    let weather_tool = Tool::new(
+        "weather",
+        "Get weather",
+        json!({
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"}
+            }
+        }),
+    );
+
+    let request = ChatCompletionRequest::builder()
+        .model("openai/gpt-5")
+        .messages(vec![Message::new(
+            Role::User,
+            "Check docs, then format output.",
+        )])
+        .tool(weather_tool)
+        .tool(ServerTool::openrouter_web_search().option("max_results", 5))
+        .tool_choice_auto()
+        .build()
+        .expect("request should build");
+
+    let json = serde_json::to_value(&request).expect("request should serialize");
+
+    assert_eq!(json["tools"][0]["type"], "function");
+    assert_eq!(json["tools"][0]["function"]["name"], "weather");
+    assert_eq!(json["tools"][1]["type"], "openrouter:web_search");
+    assert_eq!(json["tools"][1]["parameters"]["max_results"], 5);
+    assert_eq!(json["tool_choice"], "auto");
+}
+
+#[test]
+fn test_chat_request_tools_setter_accepts_existing_function_tools() {
+    let tool = Tool::new("calculator", "Calculate", json!({"type": "object"}));
+
+    let request = ChatCompletionRequest::builder()
+        .model("openai/gpt-5")
+        .messages(vec![Message::new(Role::User, "calculate")])
+        .tools(vec![tool])
+        .build()
+        .expect("request should build");
+
+    let tools = request.tools().expect("tools should be present");
+    let function_tool = tools[0]
+        .as_function()
+        .expect("existing tool should become a function tool");
+
+    assert_eq!(function_tool.function.name, "calculator");
 }

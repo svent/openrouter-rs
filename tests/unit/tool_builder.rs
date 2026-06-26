@@ -1,4 +1,4 @@
-use openrouter_rs::types::tool::{FunctionDefinition, Tool};
+use openrouter_rs::types::tool::{FunctionDefinition, ServerTool, Tool, ToolDefinition};
 use serde_json::json;
 
 #[test]
@@ -74,4 +74,37 @@ fn test_tool_builder_requires_name() {
         .expect_err("tool should not build without a name");
 
     assert!(err.to_string().contains("Tool name is required"));
+}
+
+#[test]
+fn test_server_tool_web_search_serializes() {
+    let tool = ServerTool::openrouter_web_search()
+        .option("engine", "exa")
+        .option("max_total_results", 10);
+
+    let value = serde_json::to_value(&tool).expect("server tool should serialize");
+
+    assert_eq!(value["type"], "openrouter:web_search");
+    assert_eq!(value["parameters"]["engine"], "exa");
+    assert_eq!(value["parameters"]["max_total_results"], 10);
+}
+
+#[test]
+fn test_tool_definition_serializes_function_tool_without_shape_change() {
+    let tool = Tool::new(
+        "weather",
+        "Get weather",
+        json!({
+            "type": "object",
+            "properties": {
+                "location": {"type": "string"}
+            }
+        }),
+    );
+
+    let function_value = serde_json::to_value(&tool).expect("function tool should serialize");
+    let definition_value =
+        serde_json::to_value(ToolDefinition::from(tool)).expect("tool definition should serialize");
+
+    assert_eq!(definition_value, function_value);
 }

@@ -173,8 +173,22 @@ async fn test_tool_builder_methods() {
     assert!(request.tools().is_some());
     let tools = request.tools().unwrap();
     assert_eq!(tools.len(), 2);
-    assert_eq!(tools[0].function.name, "tool1");
-    assert_eq!(tools[1].function.name, "tool2");
+    assert_eq!(
+        tools[0]
+            .as_function()
+            .expect("first tool should be a function tool")
+            .function
+            .name,
+        "tool1"
+    );
+    assert_eq!(
+        tools[1]
+            .as_function()
+            .expect("second tool should be a function tool")
+            .function
+            .name,
+        "tool2"
+    );
 
     // Verify tool choice
     assert!(request.tool_choice().is_some());

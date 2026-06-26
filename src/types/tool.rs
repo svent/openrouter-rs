@@ -46,6 +46,8 @@
 //! let specific_choice = ToolChoice::force_tool("get_weather");
 //! ```
 
+use std::collections::HashMap;
+
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -104,6 +106,86 @@ impl Tool {
                 parameters,
             },
         }
+    }
+}
+
+/// One entry in a chat completion `tools` array.
+///
+/// OpenRouter accepts both user-defined function tools and server-side
+/// OpenRouter tools in the same request array.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[non_exhaustive]
+#[serde(untagged)]
+pub enum ToolDefinition {
+    /// A user-defined function tool.
+    Function(Tool),
+    /// A server-side OpenRouter tool.
+    Server(ServerTool),
+}
+
+impl From<Tool> for ToolDefinition {
+    fn from(tool: Tool) -> Self {
+        Self::Function(tool)
+    }
+}
+
+impl From<ServerTool> for ToolDefinition {
+    fn from(tool: ServerTool) -> Self {
+        Self::Server(tool)
+    }
+}
+
+impl ToolDefinition {
+    /// Return the function tool definition if this is a function tool.
+    pub fn as_function(&self) -> Option<&Tool> {
+        match self {
+            Self::Function(tool) => Some(tool),
+            Self::Server(_) => None,
+        }
+    }
+
+    /// Return the server tool definition if this is a server tool.
+    pub fn as_server(&self) -> Option<&ServerTool> {
+        match self {
+            Self::Function(_) => None,
+            Self::Server(tool) => Some(tool),
+        }
+    }
+}
+
+/// Generic OpenRouter server-side tool definition.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct ServerTool {
+    /// Server tool type, such as `"openrouter:web_search"`.
+    #[serde(rename = "type")]
+    pub tool_type: String,
+
+    /// Optional server tool parameters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parameters: Option<HashMap<String, Value>>,
+}
+
+impl ServerTool {
+    /// Create a new server tool with the given type.
+    pub fn new(tool_type: impl Into<String>) -> Self {
+        Self {
+            tool_type: tool_type.into(),
+            parameters: None,
+        }
+    }
+
+    /// Create an OpenRouter web search server tool.
+    pub fn openrouter_web_search() -> Self {
+        Self::new("openrouter:web_search")
+    }
+
+    /// Add or replace an option in the server tool parameters.
+    pub fn option(mut self, key: impl Into<String>, value: impl Into<Value>) -> Self {
+        self.parameters
+            .get_or_insert_with(Default::default)
+            .insert(key.into(), value.into());
+        self
     }
 }
 
